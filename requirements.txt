@@ -1,0 +1,8 @@
+pandas
+numpy
+matplotlib
+catboost
+scikit-learn
+openai
+shap
+dice_ml

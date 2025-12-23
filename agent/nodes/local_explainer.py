@@ -1,7 +1,6 @@
 from agent.state import XAIState
 from agent.tools.global_tools import compute_shap_values
-from agent.tools.local_tools import generate_shap_waterfall_plot
-from agent.tools.lime_tools import compute_lime_explanation, generate_lime_plot
+from agent.tools.local_tools import generate_shap_waterfall_plot, compute_lime_explanation, generate_lime_plot
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage
 from langchain_core.tools import tool
@@ -19,9 +18,9 @@ def run_shap_explanation(
     Generates a SHAP Waterfall plot to explain a specific user's prediction.
     Best for understanding contribution of each feature to the final score.
     """
-    df = state.get("df")
-    model = state.get("model")
-    target = state.get("target_variable")
+    df = state.get("df", None)
+    model = state.get("model", None)
+    target = state.get("target_variable", None)
     
     if df is None or model is None:
         return "Error: DataFrame or Model not found in state."
@@ -51,9 +50,9 @@ def run_lime_explanation(
     Generates a LIME explanation for a specific user's prediction.
     Useful for local linear approximation (Alternative to SHAP).
     """
-    df = state.get("df")
-    model = state.get("model")
-    target = state.get("target_variable")
+    df = state.get("df", None)
+    model = state.get("model", None)
+    target = state.get("target_variable", None)
     
     if df is None or model is None:
         return "Error: DataFrame or Model not found in state."

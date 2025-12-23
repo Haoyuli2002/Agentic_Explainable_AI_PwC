@@ -49,6 +49,7 @@ def data_understanding_agent(state: XAIState):
     1. Inspects data with `get_dataset_samples`.
     2. Updates state with `update_metadata`.
     """
+
     llm = ChatOpenAI(model="gpt-4o", temperature=0)
     tools = [get_dataset_samples, update_metadata] # Bind both
     llm_with_tools = llm.bind_tools(tools)
@@ -64,6 +65,7 @@ def data_understanding_agent(state: XAIState):
     4. FINALLY, call `update_metadata` to save these findings to the system state.
     """
 
+    # Only append system prompt if it's not already there (simple check)
     if not messages or not isinstance(messages[0], SystemMessage):
          messages = [SystemMessage(content=system_prompt)] + messages
          

@@ -9,7 +9,8 @@ def router_agent(state: XAIState):
     """
     messages = state.get('messages', [])
     if not messages:
-        return {"analysis_mode": "global"} # Default
+        # If no messages, assume new session -> Data Understanding
+        return {"analysis_mode": "data_understanding"}
         
     # Find the last HumanMessage (User Query)
     last_user_message = None
@@ -19,13 +20,9 @@ def router_agent(state: XAIState):
             break
             
     if not last_user_message:
-         # Fallback if no user message found (rare)
-         return {"analysis_mode": "global"}
+         return {"analysis_mode": "data_understanding"}
 
     last_message = last_user_message
-    
-    # Context from Data Understanding (to help router know valid targets/IDs if needed in future)
-    # For now, we just route based on intent.
     
     llm = ChatOpenAI(model="gpt-4o", temperature=0)
     
@@ -34,16 +31,16 @@ def router_agent(state: XAIState):
     The user said: "{last_message}"
     
     Classify the intent into one of these modes:
-    - **global**: Overall model behavior, feature importance, summary plots.
+    - **data_understanding**: Initial analysis, "analyze this dataset", "what are the columns?", "show samples", schema/stats questions. Or if the user just uploaded data or want to modify or correct the metadata.
+    - **global**: Overall model behavior, feature importance, summary plots, "how does the model work?".
     - **local**: Explanation for a specific instance/user/customer. Look for IDs (e.g., "User 5", "row 10").
-    - **fairness**: Bias, demographic parity, ethical concerns, "is the model fair or ethical?".
-    - **counterfactual**: "What if?", "How to change the outcome?", "Actionable changes", "What can the user do with minimal changes to receive positive predictions?", "What should the the bank do so that the user will subscribe or buy this service?".
+    - **counterfactual**: "What if?", "Actionable changes", "How to change the outcome?".
     
     If the user mentions a specific ID (integer), extract it as `user_id`. Otherwise `0` as default.
     
     Return a strict JSON object:
     {{
-        "mode": "global" | "local" | "fairness" | "counterfactual",
+        "mode": "data_understanding" | "global" | "local" | "counterfactual",
         "user_id": int or 0,
         "reason": "brief explanation"
     }}
@@ -54,13 +51,20 @@ def router_agent(state: XAIState):
         content = response.content.replace("```json", "").replace("```", "").strip()
         result = json.loads(content)
         
+        mode = result.get("mode", "data_understanding")
+        
+        # Determine fallback if LLM hallucinates invalid mode
+        valid_modes = ["data_understanding", "global", "local", "counterfactual"]
+        if mode not in valid_modes:
+            mode = "data_understanding"
+
         return {
-            "analysis_mode": result.get("mode", "global"),
+            "analysis_mode": mode,
             "user_id": result.get("user_id"),
         }
     except Exception as e:
         print(f"Router Error: {e}")
         return {
-            "analysis_mode": "global",
+            "analysis_mode": "data_understanding",
             "user_id": 0
         }

@@ -24,17 +24,19 @@ def route_based_on_intent(state: XAIState):
     Conditional Edge Logic: Reads 'analysis_mode' from Router output
     and directs to the correct agent.
     """
-    mode = state.get("analysis_mode", "global")
+    mode = state.get("analysis_mode", "data_understanding")
     
     if mode == "local":
         return "local_explainer"
+    elif mode == "global":
+        return "global_explainer"
     # Fairness and Counterfactual disabled for now
     # elif mode == "fairness":
     #     return "fairness"
     # elif mode == "counterfactual":
     #     return "counterfactual" 
     else:
-        return "global_explainer" # Default to global if unsure or fairness/counterfactual requested
+        return "data_understanding" # Default to global if unsure or fairness/counterfactual requested
 
 # Build Graph
 workflow = StateGraph(XAIState)
@@ -53,7 +55,7 @@ workflow.add_node("local_tools", local_tools_node)
 # --- Edges ---
 
 # 1. Start -> Data Understanding
-workflow.set_entry_point("data_understanding")
+workflow.set_entry_point("router")
 
 # 2. Data Understanding Loop
 workflow.add_conditional_edges(
@@ -61,7 +63,7 @@ workflow.add_conditional_edges(
     tools_condition,
     {
         "tools": "data_tools",
-        "__end__": "router" # Proceed to Router when done
+        "__end__": END # Proceed to END when done (Yield to User)
     }
 )
 workflow.add_edge("data_tools", "data_understanding")
@@ -72,7 +74,8 @@ workflow.add_conditional_edges(
     route_based_on_intent,
     {
         "local_explainer": "local_explainer",
-        "global_explainer": "global_explainer"
+        "global_explainer": "global_explainer",
+        "data_understanding": "data_understanding"
     }
 )
 

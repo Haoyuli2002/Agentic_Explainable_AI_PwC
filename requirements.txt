@@ -6,3 +6,9 @@ scikit-learn
 openai
 shap
 dice_ml
+python-dotenv
+langchain
+langgraph
+langchain-openai
+tabulate
+lime

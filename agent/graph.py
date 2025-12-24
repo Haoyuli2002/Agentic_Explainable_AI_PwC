@@ -8,7 +8,7 @@ from agent.nodes.data_understanding import data_understanding_agent, get_dataset
 from agent.nodes.router import router_agent
 from agent.nodes.global_explainer import global_explainer_agent, get_global_feature_importance_shap
 from agent.nodes.local_explainer import local_explainer_agent, run_shap_explanation, run_lime_explanation
-# from agent.nodes.fairness import fairness_agent, check_demographic_parity # Disabled for now
+from agent.nodes.ethic_analysis import ethic_analysis_agent, run_ethic_analysis, visualize_ethic_analysis
 
 data_tools = [get_dataset_samples, update_metadata]
 data_tools_node = ToolNode(data_tools)
@@ -18,6 +18,9 @@ global_tools_node = ToolNode(global_tools)
 
 local_tools = [run_shap_explanation, run_lime_explanation]
 local_tools_node = ToolNode(local_tools)
+
+ethic_tools = [run_ethic_analysis, visualize_ethic_analysis]
+ethic_tools_node = ToolNode(ethic_tools)
 
 def route_based_on_intent(state: XAIState):
     """
@@ -30,9 +33,8 @@ def route_based_on_intent(state: XAIState):
         return "local_explainer"
     elif mode == "global":
         return "global_explainer"
-    # Fairness and Counterfactual disabled for now
-    # elif mode == "fairness":
-    #     return "fairness"
+    elif mode == "fairness":
+        return "ethic_analysis"
     # elif mode == "counterfactual":
     #     return "counterfactual" 
     else:
@@ -51,6 +53,9 @@ workflow.add_node("global_tools", global_tools_node)
 
 workflow.add_node("local_explainer", local_explainer_agent)
 workflow.add_node("local_tools", local_tools_node)
+
+workflow.add_node("ethic_analysis", ethic_analysis_agent)
+workflow.add_node("ethic_tools", ethic_tools_node)
 
 # --- Edges ---
 
@@ -75,6 +80,7 @@ workflow.add_conditional_edges(
     {
         "local_explainer": "local_explainer",
         "global_explainer": "global_explainer",
+        "ethic_analysis": "ethic_analysis",
         "data_understanding": "data_understanding"
     }
 )
@@ -103,5 +109,16 @@ workflow.add_conditional_edges(
     }
 )
 workflow.add_edge("local_tools", "local_explainer")
+
+# 6. Ethic Analysis (Single Step / Self-contained)
+workflow.add_conditional_edges(
+    "ethic_analysis",
+    tools_condition,
+    {
+        "tools": "ethic_tools",
+        "__end__": END
+    }
+)
+workflow.add_edge("ethic_tools", "ethic_analysis")
 
 app = workflow.compile()

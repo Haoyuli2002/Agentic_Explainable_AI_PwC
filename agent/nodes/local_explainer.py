@@ -4,7 +4,7 @@ from agent.tools.local_tools import generate_shap_waterfall_plot, compute_lime_e
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage
 from langchain_core.tools import tool
-from langgraph.prebuilt import InjectedState, ToolNode
+from langgraph.prebuilt import InjectedState
 
 import pandas as pd
 from typing import Annotated, Any

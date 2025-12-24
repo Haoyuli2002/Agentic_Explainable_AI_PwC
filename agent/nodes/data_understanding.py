@@ -61,8 +61,9 @@ def data_understanding_agent(state: XAIState):
     You are a Data Scientist.
     1. First, call `get_dataset_samples` to inspect the dataframe.
     2. Analyze the data to determine: Target Variable, Problem Type (regression/classification), Format (tabular/temporal), and Descripton.
-    3. If the values of the metadata is unclear or cannot be determined, use None instead. Also tell user which information is unclear and ask them for more information.
-    4. FINALLY, call `update_metadata` to save these findings to the system state.
+    3. Also, for each feature, provide a one-line description.
+    4. If the values of the metadata is unclear or cannot be determined, use None instead. Also tell user which information is unclear and ask them for more information.
+    5. FINALLY, call `update_metadata` to save these findings to the system state.
     """
 
     # Only append system prompt if it's not already there (simple check)

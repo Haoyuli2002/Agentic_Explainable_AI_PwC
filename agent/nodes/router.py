@@ -13,16 +13,17 @@ def router_agent(state: XAIState):
         return {"analysis_mode": "data_understanding"}
         
     # Find the last HumanMessage (User Query)
-    last_user_message = None
+    last_3_user_message = []
     for m in reversed(messages):
         if isinstance(m, HumanMessage):
-            last_user_message = m.content
-            break
+            last_3_user_message.append(m.content)
+            if len(last_3_user_message) == 3:
+                break
             
-    if not last_user_message:
+    if not last_3_user_message:
          return {"analysis_mode": "data_understanding"}
 
-    last_message = last_user_message
+    last_message = "\n".join(last_3_user_message)
     
     llm = ChatOpenAI(model="gpt-4o", temperature=0)
     
@@ -34,13 +35,14 @@ def router_agent(state: XAIState):
     - **data_understanding**: Initial analysis, "analyze this dataset", "what are the columns?", "show samples", schema/stats questions. Or if the user just uploaded data or want to modify or correct the metadata.
     - **global**: Overall model behavior, feature importance, summary plots, "how does the model work?".
     - **local**: Explanation for a specific instance/user/customer. Look for IDs (e.g., "User 5", "row 10").
+    - **fairness**: Detect bias, ethical issues, demographic parity, specialized groups, "is this fair?", "check for discrimination".
     - **counterfactual**: "What if?", "Actionable changes", "How to change the outcome?".
     
     If the user mentions a specific ID (integer), extract it as `user_id`. Otherwise `0` as default.
     
     Return a strict JSON object:
     {{
-        "mode": "data_understanding" | "global" | "local" | "counterfactual",
+        "mode": "data_understanding" | "global" | "local" | "fairness" | "counterfactual",
         "user_id": int or 0,
         "reason": "brief explanation"
     }}
@@ -54,7 +56,7 @@ def router_agent(state: XAIState):
         mode = result.get("mode", "data_understanding")
         
         # Determine fallback if LLM hallucinates invalid mode
-        valid_modes = ["data_understanding", "global", "local", "counterfactual"]
+        valid_modes = ["data_understanding", "global", "local", "fairness", "counterfactual"]
         if mode not in valid_modes:
             mode = "data_understanding"
 

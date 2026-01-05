@@ -21,9 +21,13 @@ class XAIState(TypedDict):
 
     dataset_description: Optional[str]
     feature_description: Optional[dict]
+
+    sensitive_variables: Optional[list]
+
+    fairness_metrics: Optional[dict]
     
     # Router Outputs
-    analysis_mode: Optional[str]  # 'data', 'global', 'local', 'fairness', 'counterfactual'
+    analysis_mode: Optional[str]  # 'data', 'global', 'local', 'fairness', 'counterfactual', 'data_understanding'
     user_id: Optional[int]        # For local/counterfactual explanations
     
     # Results storage (optional, or just use messages)

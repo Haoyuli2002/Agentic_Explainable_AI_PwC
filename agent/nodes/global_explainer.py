@@ -6,6 +6,7 @@ from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
 
 import pandas as pd
+import numpy as np
 from typing import Annotated, Any
 
 system_prompt = """
@@ -41,7 +42,33 @@ def get_global_feature_importance_shap(
     try:
         shap_values = compute_shap_values(model, X_sample)
         plot_path = generate_shap_summary_plot(shap_values, X_sample)
-        return f"I have generated the Global SHAP Summary Plot. It is saved here: `{plot_path}`."
+        
+        # --- NEW: Calculate Top 9 + Others ---
+        # 1. mean absolute SHAP value per feature
+        global_importance = np.abs(shap_values.values).mean(axis=0)
+        feature_names = X_sample.columns.tolist()
+        
+        # Map feature -> importance
+        feat_imp = pd.DataFrame({
+            "feature": feature_names,
+            "importance": global_importance
+        }).sort_values(by="importance", ascending=False)
+        
+        # 2. Get Top 9
+        top_9 = feat_imp.head(9)
+        
+        # 3. Aggregate "Others"
+        others_importance = feat_imp.iloc[9:]['importance'].sum() if len(feat_imp) > 9 else 0.0
+        
+        # 4. Format Output Text
+        text_list = "### Top Driving Features (Global Importance):\\n"
+        for i, row in enumerate(top_9.itertuples(), 1):
+            text_list += f"{i}. **{row.feature}**: {row.importance:.4f}\\n"
+            
+        if others_importance > 0:
+            text_list += f"10. **Others**: {others_importance:.4f}\\n"
+            
+        return f"{text_list}\\n\\nI have also generated the Global SHAP Summary Plot. It is saved here: `{plot_path}`."
     except Exception as e:
         return f"Error generating global explanation: {e}"
 

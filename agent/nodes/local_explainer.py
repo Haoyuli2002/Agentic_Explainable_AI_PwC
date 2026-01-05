@@ -7,6 +7,7 @@ from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
 
 import pandas as pd
+import numpy as np
 from typing import Annotated, Any
 
 @tool
@@ -35,11 +36,35 @@ def run_shap_explanation(
         return f"Error: User ID {user_id} not found."
 
     # 3. Execution (Optimized Single Row)
+    # 3. Execution (Optimized Single Row)
     X_single = X.iloc[[user_id]]
     shap_values = compute_shap_values(model, X_single)
     plot_path = generate_shap_waterfall_plot(shap_values, 0) # Index 0 of single row return
+
+    # --- NEW: SHAP Feature List for User ---
+    # shap_values[0] gives the Explanation object for the single instance
+    # .values gives the raw SHAP values array
+    instance_shap = shap_values[0].values
+    feature_names = X_single.columns.tolist()
+
+    feat_imp = pd.DataFrame({
+        "feature": feature_names,
+        "importance": instance_shap,
+        "abs_importance": np.abs(instance_shap)
+    }).sort_values(by="abs_importance", ascending=False)
+
+    top_9 = feat_imp.head(9)
+    # Sum raw values of others to preserve directional impact (roughly)
+    others_importance = feat_imp.iloc[9:]['importance'].sum() if len(feat_imp) > 9 else 0.0
+
+    text_list = f"### Top Contributing Features for User {user_id} (SHAP):\\n"
+    for i, row in enumerate(top_9.itertuples(), 1):
+        text_list += f"{i}. **{row.feature}**: {row.importance:.4f}\\n"
     
-    return f"I have generated the SHAP Waterfall plot for User {user_id}. It is saved at `{plot_path}`."
+    if len(feat_imp) > 9:
+        text_list += f"10. **Others**: {others_importance:.4f}\\n"
+    
+    return f"{text_list}\\n\\nI have also generated the SHAP Waterfall plot for User {user_id}. It is saved at `{plot_path}`."
 
 @tool
 def run_lime_explanation(
@@ -68,7 +93,25 @@ def run_lime_explanation(
     lime_exp = compute_lime_explanation(model, X, X.iloc[user_id])
     plot_path = generate_lime_plot(lime_exp)
     
-    return f"I have generated the LIME explanation for User {user_id}. It is saved at `{plot_path}`."
+    # --- NEW: LIME Feature List for User ---
+    # lime_exp.as_list() returns list of (feature_condition, weight) tuples
+    lime_list = lime_exp.as_list()
+    
+    # Sort by absolute weight (LIME usually returns sorted, but just in case)
+    lime_list.sort(key=lambda x: abs(x[1]), reverse=True)
+    
+    top_9 = lime_list[:9]
+    others_list = lime_list[9:]
+    others_importance = sum([x[1] for x in others_list]) if others_list else 0.0
+    
+    text_list = f"### Top Contributing Features for User {user_id} (LIME):\\n"
+    for i, (feat, weight) in enumerate(top_9, 1):
+        text_list += f"{i}. **{feat}**: {weight:.4f}\\n"
+
+    if others_list:
+         text_list += f"10. **Others**: {others_importance:.4f}\\n"
+
+    return f"{text_list}\\n\\nI have generated the LIME explanation for User {user_id}. It is saved at `{plot_path}`."
 
 
 def local_explainer_agent(state: XAIState):

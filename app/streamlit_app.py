@@ -33,13 +33,48 @@ def extract_image_path(text):
     # Regex to find paths ending in .png inside backticks or general text
     # Prioritizes explicit backticks
     match = re.search(r'`(.*?\.png)`', text)
+    if match: 
+        return match.group(1).replace("sandbox:", "")
+    
+    # Markdown link style: [..](path.png)
+    match = re.search(r'\]\((.*?\.png)\)', text)
     if match:
-        return match.group(1)
+        return match.group(1).replace("sandbox:", "")
+
     # Fallback: looks for straight paths (simplified)
     match = re.search(r'(\S+\.png)', text)
     if match:
         return match.group(1)
     return None
+
+def load_arff_data(file_object):
+    """
+    Parses ARFF file content from a file-like object (uploaded file).
+    """
+    data = []
+    columns = []
+    
+    # TextIOWrapper for decoding might be needed if binary
+    # Streamlit UploadedFile is bytes, need to decode
+    content = file_object.getvalue().decode("utf-8")
+    lines = content.splitlines()
+    
+    data_started = False
+    for line in lines:
+        line = line.strip()
+        if not line: continue
+        if line.lower().startswith("@attribute"):
+            parts = line.split()
+            columns.append(parts[1])
+        elif line.lower().startswith("@data"):
+            data_started = True
+            continue
+        elif data_started:
+            # Basic CSV parsing for data lines, stripping quotes
+            row = [x.strip().strip("'").strip('"') for x in line.split(',')]
+            data.append(row)
+            
+    return pd.DataFrame(data, columns=columns)
 
 # --- Sidebar ---
 with st.sidebar:
@@ -50,8 +85,9 @@ with st.sidebar:
     if api_key:
         os.environ["OPENAI_API_KEY"] = api_key
     
+    
     # Dataset Upload
-    uploaded_file = st.file_uploader("Upload Dataset (CSV)", type="csv")
+    uploaded_file = st.file_uploader("Upload Dataset (CSV or ARFF)", type=["csv", "arff"])
     
     # Model Upload
     uploaded_model = st.file_uploader("Upload Model (CatBoost .cbm)", type="cbm")
@@ -74,15 +110,60 @@ if "model" not in st.session_state:
     st.session_state.model = None
 
 # --- Data Loading ---
+# --- Data Loading ---
 if uploaded_file is not None:
     try:
-        df = pd.read_csv(uploaded_file)
+        if uploaded_file.name.endswith(".arff"):
+            df = load_arff_data(uploaded_file)
+        else:
+            df = pd.read_csv(uploaded_file)
+            
+        # Basic Type Inference for ARFF loaded strings
+        for col in df.columns:
+            try:
+                df[col] = pd.to_numeric(df[col])
+            except:
+                pass
+
         st.session_state.df = df
         st.sidebar.success("✅ Dataset loaded!")
+        
+        # --- Metadata Selectors (Only show if DF is loaded) ---
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("Dataset Metadata")
+        
+        # Target Variable
+        # Try to guess target
+        default_target_ix = 0
+        possible_targets = ["y", "target", "class", "label"]
+        for pt in possible_targets:
+            if pt in df.columns:
+                default_target_ix = df.columns.get_loc(pt)
+                break
+        else:
+            # Default to last column if no match
+            default_target_ix = len(df.columns) - 1
+
+        target_col = st.sidebar.selectbox(
+            "Target Variable", 
+            df.columns, 
+            index=default_target_ix
+        )
+        st.session_state.target_variable = target_col
+        
+        # Problem Type
+        problem_type = st.sidebar.selectbox(
+            "Problem Type",
+            ["classification", "regression"],
+            index=0
+        )
+        st.session_state.problem_type = problem_type
+        
         with st.sidebar.expander("Dataset Preview"):
             st.dataframe(df.head())
+            
     except Exception as e:
-        st.sidebar.error(f"Error loading CSV: {e}")
+        st.sidebar.error(f"Error loading Dataset: {e}")
 
 # --- Model Loading ---
 if uploaded_model is not None:
@@ -139,7 +220,9 @@ if prompt := st.chat_input("Ask about the dataset feature importance, or specifi
                 initial_state = {
                     "messages": st.session_state.messages,
                     "df": st.session_state.df,
-                    "model": st.session_state.model
+                    "model": st.session_state.model,
+                    "target_variable": st.session_state.get("target_variable"),
+                    "problem_type": st.session_state.get("problem_type", "classification")
                 }
 
                 # Invoke Graph

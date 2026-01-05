@@ -1,0 +1,7 @@
+.agent_venv/
+agent_venv/
+venv/
+.env
+__pycache__/
+*.pyc
+.DS_Store

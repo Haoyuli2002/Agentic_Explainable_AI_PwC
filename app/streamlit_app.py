@@ -179,85 +179,199 @@ if uploaded_model is not None:
         st.sidebar.error(f"Error loading Model: {e}")
 
 
-# --- Chat Interface ---
+# --- Tabs ---
+tab1, tab2 = st.tabs(["📖 Introduction", "💬 Agent Chat"])
 
-# Display chat history
-for message in st.session_state.messages:
-    if isinstance(message, HumanMessage):
-        with st.chat_message("user"):
-            st.markdown(message.content)
-    elif isinstance(message, AIMessage):
-        with st.chat_message("assistant"):
-            st.markdown(message.content)
-            # Check for images in history
-            img_path = extract_image_path(message.content)
-            if img_path and os.path.exists(img_path):
-                st.image(img_path)
-
-# Chat Input
-if prompt := st.chat_input("Ask about the dataset feature importance, or specific user predictions..."):
-    # 1. Add user message
-    user_msg = HumanMessage(content=prompt)
-    st.session_state.messages.append(user_msg)
+with tab1:
+    st.header("Project Overview")
+    st.markdown("""
+        <div style="font-size: 1.2rem; line-height: 1.6;">
+            Welcome to <strong>Agentic Explainable AI</strong>. This platform leverages a multi-agent system to help you understand your data, interpret machine learning models, and analyze fairness.
+        </div>
+    """, unsafe_allow_html=True)
     
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    st.subheader("1. Structure of our AI Agent System")
+    
+    agent_sys_img_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "agent", "agent_system.png")
+    if os.path.exists(agent_sys_img_path):
+        st.image(agent_sys_img_path, caption="AI Agent System Architecture")
+        
+    st.markdown("""
+        <div style="font-size: 1.2rem; line-height: 1.6;">
+            Our system is powered by a graph-based multi-agent architecture (using <strong>LangGraph</strong>). It orchestrates specialized agents to handle different stages of the machine learning explainability workflow:
+            <ul style="margin-top: 10px;">
+                <li><strong>Router Agent:</strong> At the entry point, it analyzes your request and determines which specialized agent should handle it.</li>
+                <li><strong>Data Understanding Agent:</strong> Analyzes the uploaded dataset, provides summaries, and previews data samples.</li>
+                <li><strong>Global Explainer Agent:</strong> Provides high-level insights into how the model behaves across the entire dataset (e.g., overall feature importance).</li>
+                <li><strong>Local Explainer Agent:</strong> Explains specific, individual predictions made by the model.</li>
+                <li><strong>Ethic & Fairness Analysis Agent:</strong> Assesses the model for potential biases and calculates fairness metrics across different demographic groups.</li>
+            </ul>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    st.subheader("2. Typical Workflow")
+    st.markdown("""
+        <div style="font-size: 1.2rem; line-height: 1.6;">
+            To get the most out of the Agentic XAI platform, we recommend following this typical workflow:
+            <ol style="margin-top: 10px;">
+                <li><strong>Upload Data & Model:</strong> Begin by uploading your dataset and your trained CatBoost model using the configuration sidebar.</li>
+                <li><strong>Data Understanding:</strong> Chat with the Data Understanding Agent to learn the dataset's metadata. Check that the problem type (classification or regression) and the target variable are detected correctly.</li>
+                <li><strong>Global Explanation:</strong> Ask the Global Explainer Agent for the overall feature importance to understand which features drive the model's decisions globally.</li>
+                <li><strong>Local Explanation:</strong> Dive deeper by asking the Local Explainer Agent why the model made a specific prediction for a particular entry/row in your dataset.</li>
+                <li><strong>Ethical Analysis:</strong> Conclude by asking the Ethic & Fairness Analysis Agent to check for potential biases against sensitive attributes (e.g., gender, age).</li>
+            </ol>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    st.subheader("3. Explanation of each Agent and tools they use")
+    
+    st.markdown("#### 🧭 Router Agent")
+    st.markdown("""
+        <div style="font-size: 1.2rem; line-height: 1.6;">
+            <ul style="margin-top: 0px;">
+                <li><strong>Role:</strong> The 'traffic controller'. It reads your prompt and sets the <code>analysis_mode</code> (e.g., global, local, fairness, data_understanding) to route the conversation to the correct agent.</li>
+                <li><strong>Tools:</strong> None. It relies on LLM understanding to categorize the intent.</li>
+            </ul>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("#### 📊 Data Understanding Agent")
+    st.markdown("""
+        <div style="font-size: 1.2rem; line-height: 1.6;">
+            <ul style="margin-top: 0px;">
+                <li><strong>Role:</strong> Helps you explore the uploaded dataset.</li>
+                <li><strong>Tools:</strong>
+                    <ul>
+                        <li><code>get_dataset_samples</code>: Retrieves the first few rows of the dataset for a quick preview.</li>
+                        <li><code>update_metadata</code>: Allows the agent to programmatically update the target variable or problem type if misunderstood.</li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("#### 🌍 Global Explainer Agent")
+    st.markdown("""
+        <div style="font-size: 1.2rem; line-height: 1.6;">
+            <ul style="margin-top: 0px;">
+                <li><strong>Role:</strong> Explains the overall logic of the model. What features matter most generally?</li>
+                <li><strong>Tools:</strong>
+                    <ul>
+                        <li><code>get_global_feature_importance_shap</code>: Uses <strong>SHAP (SHapley Additive exPlanations)</strong> to generate global feature importance and summary plots, illustrating how each feature impacts the model's output across all data.</li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("#### 🔎 Local Explainer Agent")
+    st.markdown("""
+        <div style="font-size: 1.2rem; line-height: 1.6;">
+            <ul style="margin-top: 0px;">
+                <li><strong>Role:</strong> Explains why the model made a <em>specific</em> prediction for a single instance (row).</li>
+                <li><strong>Tools:</strong>
+                    <ul>
+                        <li><code>run_shap_explanation</code>: Generates a SHAP waterfall plot for a specific prediction, showing how each feature pushed the prediction away from the base value.</li>
+                        <li><code>run_lime_explanation</code>: Uses <strong>LIME (Local Interpretable Model-agnostic Explanations)</strong> to explain a specific prediction by approximating the model locally.</li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("#### ⚖️ Ethic & Fairness Analysis Agent")
+    st.markdown("""
+        <div style="font-size: 1.2rem; line-height: 1.6;">
+            <ul style="margin-top: 0px;">
+                <li><strong>Role:</strong> Evaluates the model to ensure it is fair and unbiased concerning sensitive attributes (e.g., gender, race).</li>
+                <li><strong>Tools:</strong>
+                    <ul>
+                        <li><code>run_ethic_analysis</code>: Uses <strong>Fairlearn</strong> to compute fairness metrics such as Demographic Parity Difference (SPD), Equalized Odds Difference (EOD), and Disparate Impact (DI).</li>
+                        <li><code>visualize_ethic_analysis</code>: Generates bar charts visualizing accuracy, selection rates, and fairness metrics across different groups based on the sensitive attribute.</li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    """, unsafe_allow_html=True)
 
-    # 2. Invoke Agent
-    with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            try:
-                # Prepare Initial State
-                # We pass the CURRENT session objects.
-                # Note: The agent might have internal persistence if we used a checkpointer, 
-                # but here we are passing the full history every time (in-memory).
-                initial_state = {
-                    "messages": st.session_state.messages,
-                    "df": st.session_state.df,
-                    "model": st.session_state.model,
-                    "target_variable": st.session_state.get("target_variable"),
-                    "problem_type": st.session_state.get("problem_type", "classification")
-                }
-
-                # Invoke Graph
-                result = agent_app.invoke(initial_state)
-                
-                # Update History
-                full_history = result['messages']
-                
-                # Identify NEW messages
-                # We calculate the difference between the full history and what we had before (minus the user message we just appended)
-                # actually, we just appended 1 user message. So previous length was len(st.session_state.messages) - 1
-                # But safer way: just take everything after the last known message count.
-                # Since we appended 1 message (User), the "start index" for new Agent messages is len(st.session_state.messages)
-                
-                new_messages = full_history[len(st.session_state.messages):]
-                
-                # Update global state
-                st.session_state.messages = full_history
-                
-                # Render ALL new messages
-                for msg in new_messages:
-                    if isinstance(msg, AIMessage):
-                        st.markdown(msg.content)
-                        # Check for Images to Render
-                        img_path = extract_image_path(msg.content)
-                        if img_path:
-                            if os.path.exists(img_path):
-                                st.image(img_path, caption="Generated Explanation Plot")
-                            else:
-                                st.warning(f"Plot image not found at: {img_path}")
-                                
-                    elif isinstance(msg, ToolMessage):
-                        # Optional: Show tool outputs if debugging, or just keep hidden.
-                        # For XAI, usually the tool output is just data for the agent. 
-                        # Unless it's an image path?
-                        # The tools return string paths usually.
-                        pass
-                
-                # If no AI message was found in new_messages (unlikely), warn.
-                if not any(isinstance(m, AIMessage) for m in new_messages):
-                     st.warning("Agent finished without a text response.")
+with tab2:
+    # Display chat history
+    for message in st.session_state.messages:
+        if isinstance(message, HumanMessage):
+            with st.chat_message("user"):
+                st.markdown(message.content)
+        elif isinstance(message, AIMessage):
+            with st.chat_message("assistant"):
+                st.markdown(message.content)
+                # Check for images in history
+                img_path = extract_image_path(message.content)
+                if img_path and os.path.exists(img_path):
+                    st.image(img_path)
+    
+    # Chat Input
+    if prompt := st.chat_input("Ask about the dataset feature importance, or specific user predictions..."):
+        # 1. Add user message
+        user_msg = HumanMessage(content=prompt)
+        st.session_state.messages.append(user_msg)
+        
+        with st.chat_message("user"):
+            st.markdown(prompt)
+    
+        # 2. Invoke Agent
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                try:
+                    # Prepare Initial State
+                    # We pass the CURRENT session objects.
+                    # Note: The agent might have internal persistence if we used a checkpointer, 
+                    # but here we are passing the full history every time (in-memory).
+                    initial_state = {
+                        "messages": st.session_state.messages,
+                        "df": st.session_state.df,
+                        "model": st.session_state.model,
+                        "target_variable": st.session_state.get("target_variable"),
+                        "problem_type": st.session_state.get("problem_type", "classification")
+                    }
+    
+                    # Invoke Graph
+                    result = agent_app.invoke(initial_state)
                     
-            except Exception as e:
-                st.error(f"An error occurred: {e}")
+                    # Update History
+                    full_history = result['messages']
+                    
+                    # Identify NEW messages
+                    # We calculate the difference between the full history and what we had before (minus the user message we just appended)
+                    # actually, we just appended 1 user message. So previous length was len(st.session_state.messages) - 1
+                    # But safer way: just take everything after the last known message count.
+                    # Since we appended 1 message (User), the "start index" for new Agent messages is len(st.session_state.messages)
+                    
+                    new_messages = full_history[len(st.session_state.messages):]
+                    
+                    # Update global state
+                    st.session_state.messages = full_history
+                    
+                    # Render ALL new messages
+                    for msg in new_messages:
+                        if isinstance(msg, AIMessage):
+                            st.markdown(msg.content)
+                            # Check for Images to Render
+                            img_path = extract_image_path(msg.content)
+                            if img_path:
+                                if os.path.exists(img_path):
+                                    st.image(img_path, caption="Generated Explanation Plot")
+                                else:
+                                    st.warning(f"Plot image not found at: {img_path}")
+                                    
+                        elif isinstance(msg, ToolMessage):
+                            # Optional: Show tool outputs if debugging, or just keep hidden.
+                            # For XAI, usually the tool output is just data for the agent. 
+                            # Unless it's an image path?
+                            # The tools return string paths usually.
+                            pass
+                    
+                    # If no AI message was found in new_messages (unlikely), warn.
+                    if not any(isinstance(m, AIMessage) for m in new_messages):
+                         st.warning("Agent finished without a text response.")
+                        
+                except Exception as e:
+                    st.error(f"An error occurred: {e}")

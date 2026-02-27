@@ -80,12 +80,6 @@ def load_arff_data(file_object):
 with st.sidebar:
     st.header("Configuration")
     
-    # API Key Input
-    api_key = st.text_input("OpenAI API Key", type="password", help="Enter your OpenAI API key here. It will override the one in .env")
-    if api_key:
-        os.environ["OPENAI_API_KEY"] = api_key
-    
-    
     # Dataset Upload
     uploaded_file = st.file_uploader("Upload Dataset (CSV or ARFF)", type=["csv", "arff"])
     
@@ -98,7 +92,7 @@ with st.sidebar:
 
 # --- Authorization Check ---
 if not os.environ.get("OPENAI_API_KEY"):
-    st.warning("⚠️ Please enter your OpenAI API Key in the sidebar to proceed.")
+    st.warning("⚠️ Please ensure your OPENAI_API_KEY is correctly set in the .env file to proceed.")
     st.stop()
 
 # --- Session State Init ---

@@ -8,21 +8,23 @@ import json
 import io
 from typing import Annotated, Optional
 
+from langchain_core.runnables.config import RunnableConfig
+
 @tool
-def get_dataset_samples(state: Annotated[dict, InjectedState]):
+def get_dataset_samples(state: Annotated[dict, InjectedState], config: RunnableConfig):
     """
     Reads the dataset samples and schema. 
     Use this to understand the data structure.
     """
-    df = state.get("df")
+    df = config.get("configurable", {}).get("df")
     if df is None:
-        return "Error: DataFrame not found in state."
+        return "Error: DataFrame not found in state. (config df is None)"
         
     try:
         buffer = io.StringIO()
         df.info(buf=buffer)
         df_info = buffer.getvalue()
-        df_head = df.head(10).to_string()
+        df_head = df.head(20).to_string()
         return f"--- Samples ---\n{df_head}\n\n--- Info ---\n{df_info}"
     except Exception as e:
         return f"Error: {e}"
@@ -43,7 +45,7 @@ def update_metadata(
     # Instead, once this function is called, we wil update the metadata within the agent node.
     return "Metadata captured. Ready to update state."
 
-def data_understanding_agent(state: XAIState):
+def data_understanding_agent(state: XAIState, config: RunnableConfig):
     """
     Data Understanding Agent (ReAct).
     1. Inspects data with `get_dataset_samples`.
@@ -58,12 +60,17 @@ def data_understanding_agent(state: XAIState):
     
     # 1. System Prompt
     system_prompt = """
-    You are a Data Scientist.
+    You are a Data Scientist evaluating a dataset for an Explainable AI system.
     1. First, call `get_dataset_samples` to inspect the dataframe.
-    2. Analyze the data to determine: Target Variable, Problem Type (regression/classification), Format (tabular/temporal), and Descripton.
+    2. Analyze the data to determine: 
+       - Target Variable
+       - Problem Type (regression/classification)
+       - Format: CRITICAL STEP. You must decide if the data is 'tabular' or 'time-series/temporal'. 
+         * Rule: If the dataset contains multiple rows per entity (e.g., multiple rows per `id` or `client_id` tracking values across a `time` or `month` column), it is a 'time-series' dataset. If each row is completely independent, it is 'tabular'.
+       - Description: Note the general domain.
     3. Also, for each feature, provide a one-line description.
-    4. If the values of the metadata is unclear or cannot be determined, use None instead. Also tell user which information is unclear and ask them for more information.
-    5. FINALLY, call `update_metadata` to save these findings to the system state and also provide users with the explanation of the dataset.
+    4. If the metadata is unclear, use None instead and ask the user for clarification.
+    5. FINALLY, call `update_metadata` to save these findings to the system state and explain the dataset to the user.
     """
 
     # Only append system prompt if it's not already there (simple check)

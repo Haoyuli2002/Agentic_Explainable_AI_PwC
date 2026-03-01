@@ -1,4 +1,5 @@
 import json
+from langchain_core.runnables.config import RunnableConfig
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -36,7 +37,7 @@ Once the user has chosen a sensitive feature (if not specified, choose the first
 """
 
 @tool
-def run_ethic_analysis(sensitive_attr: str, state: Annotated[dict, InjectedState], spd_threshold: float = 0.1, di_low: float = 0.8, di_high: float = 1.2):
+def run_ethic_analysis(sensitive_attr: str, state: Annotated[dict, InjectedState], config: RunnableConfig, spd_threshold: float = 0.1, di_low: float = 0.8, di_high: float = 1.2):
     """
     Evaluate fairness using Fairlearn with visualization and textual report.
     
@@ -53,8 +54,8 @@ def run_ethic_analysis(sensitive_attr: str, state: Annotated[dict, InjectedState
     -------
     JSON string containing metrics and fairness evaluation.
     """
-    model = state.get("model", None)
-    df = state.get("df", None)
+    model = config.get("configurable", {}).get("model")
+    df = config.get("configurable", {}).get("df")
     target = state.get("target_variable", None)
     
     if model is None or df is None:
@@ -200,7 +201,7 @@ def visualize_ethic_analysis(state: Annotated[dict, InjectedState], spd_threshol
     return f"Plot generated and saved to {plot_path}"
     
 
-def ethic_analysis_agent(state: XAIState):
+def ethic_analysis_agent(state: XAIState, config: RunnableConfig):
     """
     Node for the Ethical Analysis Agent.
     """
@@ -217,8 +218,8 @@ def ethic_analysis_agent(state: XAIState):
         except:
             pass
             
-    model = state.get("model")
-    df = state.get("df")
+    model = config.get("configurable", {}).get("model")
+    df = config.get("configurable", {}).get("df")
     
     # Check if necessary data is available
     if model is None or df is None:

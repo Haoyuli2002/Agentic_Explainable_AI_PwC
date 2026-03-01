@@ -16,3 +16,5 @@ streamlit
 fairlearn
 langgraph-checkpoint
 langgraph-checkpoint-sqlite
+seaborn
+captum

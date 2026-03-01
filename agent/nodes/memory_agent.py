@@ -16,8 +16,19 @@ def summarize_memory(state: XAIState):
     if len(messages) <= 10:
         return {} # No state update needed
     
-    # Identify messages to summarize: everything EXCEPT the last 10
-    messages_to_summarize = messages
+    # Identify messages to summarize: everything EXCEPT the last ~10, ensuring we start on a HumanMessage
+    keep_idx = max(0, len(messages) - 10)
+    while keep_idx < len(messages) and not isinstance(messages[keep_idx], HumanMessage):
+        keep_idx += 1
+        
+    if keep_idx == len(messages):
+        # Fallback to keeping just the last user message
+        keep_idx = len(messages) - 1
+        
+    messages_to_summarize = messages[:keep_idx]
+    
+    if not messages_to_summarize:
+        return {}
     
     # Format the messages for the summarization prompt
     convo_text = ""

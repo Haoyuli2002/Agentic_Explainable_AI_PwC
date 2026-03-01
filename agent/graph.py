@@ -6,8 +6,8 @@ from agent.state import XAIState
 # Import Nodes
 from agent.nodes.data_understanding import data_understanding_agent, get_dataset_samples, update_metadata
 from agent.nodes.router import router_agent
-from agent.nodes.global_explainer import global_explainer_agent, get_global_feature_importance_shap
-from agent.nodes.local_explainer import local_explainer_agent, run_shap_explanation, run_lime_explanation
+from agent.nodes.global_explainer import global_explainer_agent, get_global_feature_importance_shap, get_global_feature_importance_ig
+from agent.nodes.local_explainer import local_explainer_agent, run_shap_explanation, run_lime_explanation, run_ig_explanation
 from agent.nodes.ethic_analysis import ethic_analysis_agent, run_ethic_analysis, visualize_ethic_analysis
 from agent.nodes.memory_agent import summarize_memory
 
@@ -21,10 +21,10 @@ memory = SqliteSaver(conn)
 data_tools = [get_dataset_samples, update_metadata]
 data_tools_node = ToolNode(data_tools)
 
-global_tools = [get_global_feature_importance_shap]
+global_tools = [get_global_feature_importance_shap, get_global_feature_importance_ig]
 global_tools_node = ToolNode(global_tools)
 
-local_tools = [run_shap_explanation, run_lime_explanation]
+local_tools = [run_shap_explanation, run_lime_explanation, run_ig_explanation]
 local_tools_node = ToolNode(local_tools)
 
 ethic_tools = [run_ethic_analysis, visualize_ethic_analysis]

@@ -1,21 +1,24 @@
 from agent.state import XAIState
-from agent import context
 from agent.tools.fairness_tools import calculate_demographic_parity
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, ToolMessage
 from langchain_core.tools import tool
+from langchain_core.runnables.config import RunnableConfig
+from typing import Annotated
+from langgraph.prebuilt import InjectedState
+import pandas as pd
 import pandas as pd
 
 @tool
-def check_demographic_parity(sensitive_attribute: str):
+def check_demographic_parity(sensitive_attribute: str, state: Annotated[dict, InjectedState], config: RunnableConfig):
     """
     Calculate Demographic Parity difference for a given sensitive attribute (e.g. 'gender', 'marital').
     Use this to check for bias in the model predictions.
     """
     try:
-        model = context.get_model()
-        df = context.get_dataset()
-        target = context.get_target_column()
+        model = config.get("configurable", {}).get("model")
+        df = config.get("configurable", {}).get("df")
+        target = state.get("target_variable", None)
     except ValueError as e:
         return f"Error: {e}"
 
@@ -41,7 +44,7 @@ def check_demographic_parity(sensitive_attribute: str):
     return f"**Fairness Analysis for '{sensitive_attribute}'**\n\nDemographic Parity Difference: {metrics.get('demographic_parity_difference', 'N/A'):.4f}"
 
 
-def fairness_agent(state: XAIState):
+def fairness_agent(state: XAIState, config: RunnableConfig):
     """
     Fairness Analysis Agent:
     - Identifies potentially sensitive attributes.
@@ -53,7 +56,7 @@ def fairness_agent(state: XAIState):
     llm_with_tools = llm.bind_tools(tools)
     
     messages = state['messages']
-    df = state.get('df') 
+    df = config.get("configurable", {}).get("df")
     columns = list(df.columns) if df is not None else []
     
     prompt = f"""

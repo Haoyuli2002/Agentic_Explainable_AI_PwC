@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 import uuid
 from catboost import CatBoostClassifier
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
+import torch
 
 # Load environment variables
 load_dotenv()
@@ -20,6 +21,10 @@ load_dotenv()
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agent.graph import app as agent_app
+
+# Import custom architectures for unpickling
+from model.lstm import LoanDefaultModel
+import collections
 
 st.set_page_config(page_title="Agentic XAI", layout="wide")
 
@@ -57,24 +62,48 @@ st.markdown("""
 # --- Helpers ---
 def extract_image_path(text):
     """
-    Extracts image path from text if present.
-    Looks for pattern: `path/to/image.png`
+    Extracts image path from text if present and resolves it.
+    Looks for pattern: `path/to/image.png` or [link](path)
     """
-    # Regex to find paths ending in .png inside backticks or general text
-    # Prioritizes explicit backticks
+    import os
+    import re
+    
+    potential_path = None
+    
+    # Regex to find paths ending in .png inside backticks
     match = re.search(r'`(.*?\.png)`', text)
     if match: 
-        return match.group(1).replace("sandbox:", "")
+        potential_path = match.group(1).replace("sandbox:", "")
     
     # Markdown link style: [..](path.png)
-    match = re.search(r'\]\((.*?\.png)\)', text)
-    if match:
-        return match.group(1).replace("sandbox:", "")
+    if not potential_path:
+        match = re.search(r'\]\((.*?\.png)\)', text)
+        if match:
+            potential_path = match.group(1).replace("sandbox:", "")
 
     # Fallback: looks for straight paths (simplified)
-    match = re.search(r'(\S+\.png)', text)
-    if match:
-        return match.group(1)
+    if not potential_path:
+        match = re.search(r'([^\s\]\(\'"]+\.png)', text)
+        if match:
+            potential_path = match.group(1).replace("sandbox:", "")
+            
+    if potential_path:
+        # Sometimes paths are prefixed with sandbox:/
+        potential_path = potential_path.replace("sandbox:/", "").replace("sandbox:", "")
+        
+        # Resolve path
+        if potential_path.startswith("/artifacts/"):
+             potential_path = potential_path.lstrip("/")
+        
+        # If it doesn't exist directly, maybe it's in the current folder or "artifacts" folder
+        base_name = os.path.basename(potential_path)
+        if os.path.exists(potential_path):
+            return potential_path
+        elif os.path.exists(os.path.join("artifacts", base_name)):
+            return os.path.join("artifacts", base_name)
+        elif os.path.exists(base_name):
+            return base_name
+            
     return None
 
 def load_arff_data(file_object):
@@ -108,8 +137,9 @@ def load_arff_data(file_object):
 
 # --- Paths to default files (relative to project root) ---
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_CSV   = os.path.join(PROJECT_ROOT, "datasets", "banking_deposit_subscription", "dataset.csv")
-DEFAULT_MODEL = os.path.join(PROJECT_ROOT, "notebooks", "models", "catboost_model.cbm")
+DEFAULT_CSV   = os.path.join(PROJECT_ROOT, "datasets", "padded_credit_default_prediction_dataset", "credit_risk_dataset_5k.csv")
+DEFAULT_NPZ   = os.path.join(PROJECT_ROOT, "datasets", "padded_credit_default_prediction_dataset", "credit_risk_dataset_5k_padded.npz")
+DEFAULT_MODEL = os.path.join(PROJECT_ROOT, "model", "best_model.pth")
 
 # --- Session State Init ---
 if "messages" not in st.session_state:
@@ -127,10 +157,9 @@ if "summary" not in st.session_state:
 
 # --- Auto-load defaults on first run ---
 if not st.session_state.default_loaded:
-    # Load default CSV
     if os.path.exists(DEFAULT_CSV):
         try:
-            df = pd.read_csv(DEFAULT_CSV)
+            df = pd.read_csv(DEFAULT_CSV, sep=';', decimal=',', on_bad_lines='warn')
             for col in df.columns:
                 try:
                     df[col] = pd.to_numeric(df[col])
@@ -140,12 +169,32 @@ if not st.session_state.default_loaded:
         except Exception:
             pass
 
-    # Load default CatBoost model
+    # Load default Padded NPZ Sequence
+    if os.path.exists(DEFAULT_NPZ):
+        try:
+            import numpy as np
+            npz_data = np.load(DEFAULT_NPZ)
+            if 'X_padded' in npz_data:
+                st.session_state.X_padded = npz_data['X_padded']
+            elif len(npz_data.files) > 0:
+                st.session_state.X_padded = npz_data[npz_data.files[0]]
+            
+            if 'feature_cols' in npz_data:
+                st.session_state.feature_cols = list(npz_data['feature_cols'])
+        except Exception:
+            pass
+
+    # Load default PyTorch model
     if os.path.exists(DEFAULT_MODEL):
         try:
-            model = CatBoostClassifier()
-            model.load_model(DEFAULT_MODEL)
-            st.session_state.model = model
+            loaded = torch.load(DEFAULT_MODEL, map_location=torch.device('cpu'))
+            if isinstance(loaded, collections.abc.Mapping):
+                m = LoanDefaultModel(input_size=33, hidden_size=32)
+                m.load_state_dict(loaded)
+            else:
+                m = loaded
+            m.eval()
+            st.session_state.model = m
         except Exception:
             pass
 
@@ -172,7 +221,7 @@ with st.sidebar:
     st.markdown("---")
 
     # --- Thread Management section ---
-    with st.expander("💾 Session Memory", expanded=True):
+    with st.expander("💾 Session Memory", expanded=False):
         st.markdown(f"**Current Thread ID**: `{st.session_state.thread_id}`")
         new_thread = st.text_input("Resume previous session (enter Thread ID):")
         if st.button("Resume Session"):
@@ -186,15 +235,16 @@ with st.sidebar:
 
     # --- Collapsible custom upload section ---
     with st.expander("📂 Upload your own files"):
-        uploaded_file  = st.file_uploader("Dataset (CSV or ARFF)", type=["csv", "arff"], key="custom_dataset_uploader")
-        uploaded_model = st.file_uploader("CatBoost Model (.cbm)",  type="cbm",           key="custom_model_uploader")
+        uploaded_file    = st.file_uploader("Dataset (CSV or ARFF)", type=["csv", "arff"], key="custom_dataset_uploader")
+        uploaded_npz     = st.file_uploader("Padded 3D Data (.npz)", type=["npz"],         key="custom_npz_uploader")
+        uploaded_model   = st.file_uploader("Model (.cbm, .pt, .pth)", type=["cbm", "pt", "pth"], key="custom_model_uploader")
 
         if uploaded_file is not None:
             try:
                 if uploaded_file.name.endswith(".arff"):
                     df = load_arff_data(uploaded_file)
                 else:
-                    df = pd.read_csv(uploaded_file)
+                    df = pd.read_csv(uploaded_file, sep=';', decimal=',', on_bad_lines='warn')
                 for col in df.columns:
                     try:
                         df[col] = pd.to_numeric(df[col])
@@ -206,19 +256,73 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"Error: {e}")
 
+        if uploaded_npz is not None:
+            try:
+                import numpy as np
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".npz") as tmp_file:
+                    tmp_file.write(uploaded_npz.getvalue())
+                    tmp_path = tmp_file.name
+                
+                # Load the padded array, usually stored as 'X_padded' or 'arr_0' inside the npz
+                npz_data = np.load(tmp_path)
+                # Check keys usually produced by np.savez
+                if 'X_padded' in npz_data:
+                    X_padded = npz_data['X_padded']
+                elif len(npz_data.files) > 0:
+                    X_padded = npz_data[npz_data.files[0]]
+                else:
+                    X_padded = None
+                    
+                if X_padded is not None:
+                    st.session_state.X_padded = X_padded
+                    
+                    if 'feature_cols' in npz_data:
+                        st.session_state.feature_cols = list(npz_data['feature_cols'])
+                        
+                    st.success(f"✅ Custom 3D Padded Data loaded! Shape: {X_padded.shape}")
+                
+                os.unlink(tmp_path)
+            except Exception as e:
+                st.error(f"Error loading NPZ: {e}")
+
         if uploaded_model is not None:
             try:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".cbm") as tmp_file:
-                    tmp_file.write(uploaded_model.getvalue())
-                    tmp_path = tmp_file.name
-                m = CatBoostClassifier()
-                m.load_model(tmp_path)
-                os.unlink(tmp_path)
-                st.session_state.model = m
-                st.session_state.custom_model = True
-                st.success("✅ Custom model loaded!")
+                # Handle CatBoost (.cbm)
+                if uploaded_model.name.endswith(".cbm"):
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".cbm") as tmp_file:
+                        tmp_file.write(uploaded_model.getvalue())
+                        tmp_path = tmp_file.name
+                    m = CatBoostClassifier()
+                    m.load_model(tmp_path)
+                    os.unlink(tmp_path)
+                    st.session_state.model = m
+                    st.session_state.custom_model = True
+                    st.success("✅ Custom CatBoost model loaded!")
+                
+                # Handle PyTorch (.pt, .pth)
+                elif uploaded_model.name.endswith(".pt") or uploaded_model.name.endswith(".pth"):
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pt") as tmp_file:
+                        tmp_file.write(uploaded_model.getvalue())
+                        tmp_path = tmp_file.name
+                        
+                    # Safely extract from pickle
+                    loaded = torch.load(tmp_path, map_location=torch.device('cpu'))
+                    
+                    if isinstance(loaded, collections.abc.Mapping):
+                        # Construct architecture from state_dict
+                        m = LoanDefaultModel(input_size=33, hidden_size=32)
+                        m.load_state_dict(loaded)
+                    else:
+                        m = loaded
+                        
+                    m.eval() # Set to evaluation mode
+                    os.unlink(tmp_path)
+                    st.session_state.model = m
+                    st.session_state.custom_model = True
+                    st.success("✅ Custom PyTorch model loaded!")
+                    
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"Error loading model: {e}")
 
     # --- Dataset Metadata (shown when a dataset is loaded) ---
     if st.session_state.df is not None:
@@ -386,12 +490,18 @@ with tab2:
             try:
                 initial_state = {
                     "messages": st.session_state.messages,
-                    "df": st.session_state.df,
-                    "model": st.session_state.model,
                     "target_variable": st.session_state.get("target_variable"),
                     "problem_type": st.session_state.get("problem_type", "classification")
                 }
-                config = {"configurable": {"thread_id": st.session_state.thread_id}}
+                config = {
+                    "configurable": {
+                        "thread_id": st.session_state.thread_id,
+                        "df": st.session_state.df,
+                        "model": st.session_state.model,
+                        "X_padded": st.session_state.get("X_padded"),
+                        "feature_cols": st.session_state.get("feature_cols")
+                    }
+                }
                 result = agent_app.invoke(initial_state, config=config)
                 st.session_state.messages = result.get('messages', [])
                 st.session_state.summary = result.get('summary', "")

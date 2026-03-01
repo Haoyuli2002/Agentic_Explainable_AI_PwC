@@ -32,3 +32,6 @@ class XAIState(TypedDict):
     
     # Results storage (optional, or just use messages)
     visualization_path: Optional[str]
+    
+    # Long-term Memory
+    summary: Optional[str]

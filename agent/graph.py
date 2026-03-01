@@ -9,6 +9,14 @@ from agent.nodes.router import router_agent
 from agent.nodes.global_explainer import global_explainer_agent, get_global_feature_importance_shap
 from agent.nodes.local_explainer import local_explainer_agent, run_shap_explanation, run_lime_explanation
 from agent.nodes.ethic_analysis import ethic_analysis_agent, run_ethic_analysis, visualize_ethic_analysis
+from agent.nodes.memory_agent import summarize_memory
+
+import sqlite3
+from langgraph.checkpoint.sqlite import SqliteSaver
+
+# Setup a global connection to keep the database open during app execution
+conn = sqlite3.connect("checkpoints.sqlite", check_same_thread=False)
+memory = SqliteSaver(conn)
 
 data_tools = [get_dataset_samples, update_metadata]
 data_tools_node = ToolNode(data_tools)
@@ -44,6 +52,7 @@ def route_based_on_intent(state: XAIState):
 workflow = StateGraph(XAIState)
 
 # Add Nodes
+workflow.add_node("memory_manager", summarize_memory)
 workflow.add_node("data_understanding", data_understanding_agent)
 workflow.add_node("data_tools", data_tools_node)
 workflow.add_node("router", router_agent)
@@ -59,8 +68,9 @@ workflow.add_node("ethic_tools", ethic_tools_node)
 
 # --- Edges ---
 
-# 1. Start -> Data Understanding
-workflow.set_entry_point("router")
+# 1. Start -> Memory Manager -> Router
+workflow.set_entry_point("memory_manager")
+workflow.add_edge("memory_manager", "router")
 
 # 2. Data Understanding Loop
 workflow.add_conditional_edges(
@@ -121,4 +131,4 @@ workflow.add_conditional_edges(
 )
 workflow.add_edge("ethic_tools", "ethic_analysis")
 
-app = workflow.compile()
+app = workflow.compile(checkpointer=memory)

@@ -9,6 +9,7 @@ import sys
 import re
 import tempfile
 from dotenv import load_dotenv
+import uuid
 from catboost import CatBoostClassifier
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 
@@ -23,6 +24,35 @@ from agent.graph import app as agent_app
 st.set_page_config(page_title="Agentic XAI", layout="wide")
 
 st.title("🤖 Agentic Explainable AI")
+
+# --- Global CSS: enlarge Agent Chat font size ---
+st.markdown("""
+<style>
+/* Chat message content — main text */
+[data-testid="stChatMessageContent"] p,
+[data-testid="stChatMessageContent"] li,
+[data-testid="stChatMessageContent"] span,
+[data-testid="stChatMessageContent"] div {
+    font-size: 1.05rem !important;
+    line-height: 1.7 !important;
+}
+
+/* Headings inside chat */
+[data-testid="stChatMessageContent"] h1 { font-size: 1.6rem !important; }
+[data-testid="stChatMessageContent"] h2 { font-size: 1.4rem !important; }
+[data-testid="stChatMessageContent"] h3 { font-size: 1.2rem !important; }
+
+/* Code blocks inside chat */
+[data-testid="stChatMessageContent"] code {
+    font-size: 0.95rem !important;
+}
+
+/* Chat input textarea */
+[data-testid="stTextArea"] textarea {
+    font-size: 1.05rem !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # --- Helpers ---
 def extract_image_path(text):
@@ -90,6 +120,10 @@ if "model" not in st.session_state:
     st.session_state.model = None
 if "default_loaded" not in st.session_state:
     st.session_state.default_loaded = False
+if "thread_id" not in st.session_state:
+    st.session_state.thread_id = str(uuid.uuid4())
+if "summary" not in st.session_state:
+    st.session_state.summary = ""
 
 # --- Auto-load defaults on first run ---
 if not st.session_state.default_loaded:
@@ -135,6 +169,19 @@ with st.sidebar:
         f"{'`' + (os.path.basename(DEFAULT_MODEL) if not st.session_state.get('custom_model') else 'custom file') + '`' if model_loaded else 'Not loaded'}"
     )
 
+    st.markdown("---")
+
+    # --- Thread Management section ---
+    with st.expander("💾 Session Memory", expanded=True):
+        st.markdown(f"**Current Thread ID**: `{st.session_state.thread_id}`")
+        new_thread = st.text_input("Resume previous session (enter Thread ID):")
+        if st.button("Resume Session"):
+            if new_thread.strip():
+                st.session_state.thread_id = new_thread.strip()
+                st.session_state.messages = []
+                st.session_state.summary = ""
+                st.rerun()
+                
     st.markdown("---")
 
     # --- Collapsible custom upload section ---
@@ -344,12 +391,18 @@ with tab2:
                     "target_variable": st.session_state.get("target_variable"),
                     "problem_type": st.session_state.get("problem_type", "classification")
                 }
-                result = agent_app.invoke(initial_state)
-                st.session_state.messages = result['messages']
+                config = {"configurable": {"thread_id": st.session_state.thread_id}}
+                result = agent_app.invoke(initial_state, config=config)
+                st.session_state.messages = result.get('messages', [])
+                st.session_state.summary = result.get('summary', "")
             except Exception as e:
                 st.error(f"An error occurred: {e}")
 
     # --- Step 2: Display full history — one user msg + last AI msg per turn ---
+    if st.session_state.get("summary"):
+        with st.expander("🧠 Long-term Memory Summary", expanded=False):
+            st.info(st.session_state.summary)
+
     if not st.session_state.messages:
         st.markdown(
             "<div style='text-align:center; color:#888; margin-top: 80px; font-size: 1.1rem;'>"

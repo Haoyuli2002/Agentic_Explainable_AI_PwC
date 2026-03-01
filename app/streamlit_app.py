@@ -357,7 +357,7 @@ if not os.environ.get("OPENAI_API_KEY"):
     st.stop()
 
 # --- Tabs ---
-tab1, tab2 = st.tabs(["📖 Introduction", "💬 Agent Chat"])
+tab1, tab2, tab3, tab4 = st.tabs(["📖 Introduction", "🗺️ Typical Workflow", "💡 Use Case", "💬 Agent Chat"])
 
 with tab1:
     st.header("Project Overview")
@@ -386,21 +386,7 @@ with tab1:
         </div>
     """, unsafe_allow_html=True)
     
-    st.subheader("2. Typical Workflow")
-    st.markdown("""
-        <div style="font-size: 1.2rem; line-height: 1.6;">
-            To get the most out of the Agentic XAI platform, we recommend following this typical workflow:
-            <ol style="margin-top: 10px;">
-                <li><strong>Upload Data & Model:</strong> Begin by uploading your dataset and your trained CatBoost model using the configuration sidebar.</li>
-                <li><strong>Data Understanding:</strong> Chat with the Data Understanding Agent to learn the dataset's metadata. Check that the problem type (classification or regression) and the target variable are detected correctly.</li>
-                <li><strong>Global Explanation:</strong> Ask the Global Explainer Agent for the overall feature importance to understand which features drive the model's decisions globally.</li>
-                <li><strong>Local Explanation:</strong> Dive deeper by asking the Local Explainer Agent why the model made a specific prediction for a particular entry/row in your dataset.</li>
-                <li><strong>Ethical Analysis:</strong> Conclude by asking the Ethic & Fairness Analysis Agent to check for potential biases against sensitive attributes (e.g., gender, age).</li>
-            </ol>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    st.subheader("3. Explanation of each Agent and tools they use")
+    st.subheader("2. Explanation of each Agent and tools they use")
     
     st.markdown("#### 🧭 Router Agent")
     st.markdown("""
@@ -472,6 +458,100 @@ with tab1:
     """, unsafe_allow_html=True)
 
 with tab2:
+    st.header("Typical Workflow")
+    st.markdown("""
+        <div style="font-size: 1.2rem; line-height: 1.6;">
+            To get the most out of the Agentic XAI platform, we recommend following this workflow:
+        </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+        <div style="font-size: 1.2rem; line-height: 1.6;">
+            <ol style="margin-top: 10px;">
+                <li><strong>Upload Data &amp; Model:</strong> Use the sidebar to upload your dataset (CSV or ARFF) and your trained model (<code>.cbm</code> for CatBoost, <code>.pth</code> for PyTorch LSTM). For time-series models, also upload the padded 3D tensor (<code>.npz</code>).</li>
+                <li><strong>Data Understanding:</strong> Go to the <strong>Agent Chat</strong> tab and ask <em>"Describe the dataset"</em> or <em>"What is the data format?"</em>. The Data Understanding Agent will summarise your data and confirm the problem type and target variable.</li>
+                <li><strong>Global Explanation:</strong> Ask <em>"Show me the global feature importance"</em>. The Global Explainer Agent automatically selects <strong>SHAP</strong> for tabular/tree models or <strong>Integrated Gradients</strong> for deep learning, and generates an importance plot.</li>
+                <li><strong>Local Explanation:</strong> Ask <em>"What is the prediction for customer 10001 and why?"</em>. The Local Explainer Agent produces a per-instance attribution chart (SHAP waterfall or IG) showing exactly which features drove that specific decision.</li>
+                <li><strong>Ethical Analysis:</strong> Ask <em>"Check fairness by gender"</em>. The Ethic &amp; Fairness Agent uses <strong>Fairlearn</strong> to compute Demographic Parity, Equalized Odds, and Disparate Impact, and generates visual comparison charts across groups.</li>
+            </ol>
+        </div>
+    """, unsafe_allow_html=True)
+
+    st.subheader("💡 Example Questions to Try")
+    st.markdown("""
+        <div style="font-size: 1.2rem; line-height: 1.6;">
+            <ul style="margin-top: 10px;">
+                <li><em>"Describe the dataset"</em></li>
+                <li><em>"Show me the global feature importance"</em></li>
+                <li><em>"What is the prediction for customer 10001 and why?"</em></li>
+                <li><em>"Check for fairness issues by gender"</em></li>
+                <li><em>"Which features are most risky for loan default?"</em></li>
+            </ul>
+        </div>
+    """, unsafe_allow_html=True)
+
+with tab3:
+    st.header("Use Case: Loan Default Prediction")
+    st.markdown("""
+        <div style="font-size: 1.2rem; line-height: 1.6;">
+            This use case illustrates a real-world scenario where AI-driven decisions directly affect people's lives — and why explainability is not optional, but essential.
+        </div>
+    """, unsafe_allow_html=True)
+
+    st.subheader("🏦 The Problem")
+    st.markdown("""
+        <div style="font-size: 1.2rem; line-height: 1.6;">
+            A customer applies for a business loan at their bank. After a short waiting period, they receive an automated rejection email.
+            When contacting the bank for clarification, they are told:<br><br>
+            <blockquote style="border-left: 4px solid #e74c3c; background: rgba(231,76,60,0.08); border-radius: 0 6px 6px 0; padding: 12px 16px; color: #f000000; font-style: italic; margin: 12px 0;">
+                "The decision was made by an internal machine learning model. We are unable to provide further details."
+            </blockquote>
+            The customer is left with no understanding of why they were rejected, no opportunity to address potential errors in the data, and no path to appeal.
+            This lack of transparency is not only frustrating — it undermines trust, raises ethical concerns, and in many jurisdictions, may violate the <strong>right to explanation</strong> under regulations such as the EU AI Act and GDPR Article 22.
+        </div>
+    """, unsafe_allow_html=True)
+
+    st.subheader("💡 Our Solution")
+    st.markdown("""
+        <div style="font-size: 1.2rem; line-height: 1.6;">
+            This project introduces an <strong>Agentic Explainable AI (XAI)</strong> platform that brings transparency and accountability to automated credit decisions.
+            Rather than replacing the model, we wrap it with an intelligent multi-agent system that can answer natural-language questions about its behaviour.
+            <ul style="margin-top: 10px;">
+                <li><strong>For the customer:</strong> Understand exactly which financial indicators led to the rejection, presented in plain language — not just raw SHAP values.</li>
+                <li><strong>For the bank officer:</strong> Quickly audit individual decisions and compare them against overall model behaviour to detect anomalies or bias.</li>
+                <li><strong>For compliance teams:</strong> Generate evidence of fairness across demographic groups (gender, age, region) to satisfy regulatory requirements.</li>
+            </ul>
+        </div>
+    """, unsafe_allow_html=True)
+
+    st.subheader("📋 Concrete Example")
+    st.markdown("""
+        <div style="font-size: 1.2rem; line-height: 1.6;">
+            Suppose <strong>Customer 10001</strong> is rejected for a loan. Using this platform, a bank officer can ask:
+            <ul style="margin-top: 10px;">
+                <li><em>"What is the prediction for customer 10001 and why?"</em> — The Local Explainer Agent uses Integrated Gradients to identify that
+                <strong>negative EBITDA growth</strong> and a <strong>high DPD-10 flag</strong> over the past 3 years were the primary drivers of the rejection.</li>
+                <li><em>"Show me the global feature importance"</em> — The Global Explainer reveals that <strong>Cash Flow Ratio</strong> and <strong>Covenant Breaches</strong>
+                are the top predictors across all customers, helping the bank understand its model's overall logic.</li>
+                <li><em>"Is the model fair across customer segments?"</em> — The Ethic & Fairness Agent checks whether rejection rates differ significantly across groups, flagging any systemic bias.</li>
+            </ul>
+            This transforms an opaque black-box decision into a <strong>clear, auditable, and trustworthy</strong> explanation — empowering both the bank and the customer.
+        </div>
+    """, unsafe_allow_html=True)
+
+    st.subheader("🎯 Why This Matters")
+    st.markdown("""
+        <div style="font-size: 1.2rem; line-height: 1.6;">
+            <ul style="margin-top: 10px;">
+                <li><strong>Regulatory Compliance:</strong> EU AI Act, GDPR Article 22, and similar frameworks increasingly require human-interpretable explanations for automated decisions affecting individuals.</li>
+                <li><strong>Customer Trust:</strong> Transparent rejections preserve the customer relationship and reduce the perception of arbitrary or discriminatory treatment.</li>
+                <li><strong>Model Quality:</strong> Explainability forces banks to critically review their own models, catching errors, overfitting, or unintended proxies for protected attributes.</li>
+                <li><strong>Operational Efficiency:</strong> Natural language interaction removes the need for data science expertise to audit individual decisions, empowering frontline staff.</li>
+            </ul>
+        </div>
+    """, unsafe_allow_html=True)
+
+with tab4:
 
     # --- Step 1: Handle form submission FIRST (before any rendering) ---
     # Use a placeholder in session state for the pending prompt

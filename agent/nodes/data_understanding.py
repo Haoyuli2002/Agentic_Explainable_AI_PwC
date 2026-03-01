@@ -59,6 +59,12 @@ def data_understanding_agent(state: XAIState, config: RunnableConfig):
     messages = state.get("messages", [])
     
     # 1. System Prompt
+    lang = config.get("configurable", {}).get("lang", "en")
+    lang_instruction = (
+        "\n\nIMPORTANT: The user interface is set to Chinese (中文). You MUST respond entirely in Simplified Chinese (简体中文). All explanations, summaries, questions, and field descriptions must be written in Chinese."
+        if lang == "zh" else
+        "\n\nRespond in English."
+    )
     system_prompt = """
     You are a Data Scientist evaluating a dataset for an Explainable AI system.
     1. First, call `get_dataset_samples` to inspect the dataframe.
@@ -71,7 +77,7 @@ def data_understanding_agent(state: XAIState, config: RunnableConfig):
     3. Also, for each feature, provide a one-line description.
     4. If the metadata is unclear, use None instead and ask the user for clarification.
     5. FINALLY, call `update_metadata` to save these findings to the system state and explain the dataset to the user.
-    """
+    """ + lang_instruction
 
     # Only append system prompt if it's not already there (simple check)
     if not messages or not isinstance(messages[0], SystemMessage):

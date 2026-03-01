@@ -1,9 +1,10 @@
 from agent.state import XAIState
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.runnables.config import RunnableConfig
 import json
 
-def router_agent(state: XAIState):
+def router_agent(state: XAIState, config: RunnableConfig):
     """
     Router Node: Classifies the user's latest query to determine the analysis path.
     Includes the last AI message as context so follow-up answers are routed correctly.
@@ -35,6 +36,10 @@ def router_agent(state: XAIState):
 
     llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
+    lang = config.get("configurable", {}).get("lang", "en")
+
+    lang_instruction = "\nIMPORTANT: Respond ONLY with the JSON object as instructed. Do not add any extra text." if lang == "en" else "\n重要：只需返回指定的JSON对象，不要添加任何额外文字。"
+
     prompt = f"""
     You are an Intent Classifier for an Explainable AI System.
     {context}
@@ -54,7 +59,7 @@ Return ONLY a strict JSON object:
     "mode": "data_understanding" | "global" | "local" | "fairness" | "counterfactual",
     "user_id": int or 0,
     "reason": "brief explanation"
-}}"""
+}}{lang_instruction}"""
 
     try:
         response = llm.invoke([SystemMessage(content=prompt)])

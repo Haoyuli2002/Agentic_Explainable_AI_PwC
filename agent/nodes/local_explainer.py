@@ -202,12 +202,19 @@ def run_ig_explanation(
 def local_explainer_agent(state: XAIState, config: RunnableConfig):
     """
     Local Explainer Agent:
-    - Decides which explanation method to use (SHAP vs LIME).
+    - Decides which explanation method to use (SHAP vs LIME vs IG).
     - Executes the chosen tool.
     - Returns the explanation and plot path.
     """
     llm = ChatOpenAI(model="gpt-4o", temperature=0)
     
+    lang = config.get("configurable", {}).get("lang", "en")
+    lang_instruction = (
+        " IMPORTANT: The user interface is set to Chinese (中文). You MUST respond entirely in Simplified Chinese (简体中文). Explain all predictions, feature contributions, and insights in Chinese."
+        if lang == "zh" else
+        " Respond in English."
+    )
+
     # Bind fully functional tools
     tools = [run_shap_explanation, run_lime_explanation, run_ig_explanation]
     llm_with_tools = llm.bind_tools(tools)
@@ -221,6 +228,7 @@ def local_explainer_agent(state: XAIState, config: RunnableConfig):
         "CRITICAL RULE: If the analysis_mode/format is 'time-series' or 'temporal', or if the model is a Deep Learning PyTorch model (like an LSTM), "
         "you ABSOLUTELY MUST USE the `run_ig_explanation` tool. SHAP and LIME will crash and burn. "
         "Only use SHAP for standard Tabular/CatBoost data."
+        + lang_instruction
     ))
     
     if user_id is not None:

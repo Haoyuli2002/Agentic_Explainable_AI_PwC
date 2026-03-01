@@ -160,12 +160,20 @@ def global_explainer_agent(state: XAIState, config: RunnableConfig):
     """
     llm = ChatOpenAI(model="gpt-4o", temperature=0)
     
+    lang = config.get("configurable", {}).get("lang", "en")
+    lang_instruction = (
+        "\n\nIMPORTANT: The user interface is set to Chinese (中文). You MUST respond entirely in Simplified Chinese (简体中文). Explain all feature importance results, charts, and insights in Chinese."
+        if lang == "zh" else
+        "\n\nRespond in English."
+    )
+    full_system_prompt = system_prompt + lang_instruction
+
     # Bind Dictionary-based tool
     tools = [get_global_feature_importance_shap, get_global_feature_importance_ig]
     llm_with_tools = llm.bind_tools(tools)
     
     messages = state.get('messages', [HumanMessage(content="Please show me the global feature importance.")])
-    messages = [SystemMessage(content=system_prompt)] + messages
+    messages = [SystemMessage(content=full_system_prompt)] + messages
     response = llm_with_tools.invoke(messages)
 
     return {"messages": [response]}

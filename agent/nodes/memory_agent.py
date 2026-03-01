@@ -1,8 +1,9 @@
 from agent.state import XAIState
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, RemoveMessage
 from langchain_openai import ChatOpenAI
+from langchain_core.runnables.config import RunnableConfig
 
-def summarize_memory(state: XAIState):
+def summarize_memory(state: XAIState, config: RunnableConfig):
     """
     Memory Manager Node: Checks if the conversation history is getting too long (short-term window of 10).
     If it is, it summarizes the older messages into a long-term summary and removes them from the state.
@@ -10,19 +11,14 @@ def summarize_memory(state: XAIState):
     messages = state.get('messages', [])
     summary = state.get('summary', "")
     
-    # We want to keep the last 10 messages (5 pairs of interactions roughly)
-    # Plus, the first message is often the system prompt in some setups, but here it's managed by add_messages
-    
     if len(messages) <= 10:
-        return {} # No state update needed
+        return {}  # No state update needed
     
-    # Identify messages to summarize: everything EXCEPT the last ~10, ensuring we start on a HumanMessage
     keep_idx = max(0, len(messages) - 10)
     while keep_idx < len(messages) and not isinstance(messages[keep_idx], HumanMessage):
         keep_idx += 1
         
     if keep_idx == len(messages):
-        # Fallback to keeping just the last user message
         keep_idx = len(messages) - 1
         
     messages_to_summarize = messages[:keep_idx]
@@ -30,12 +26,18 @@ def summarize_memory(state: XAIState):
     if not messages_to_summarize:
         return {}
     
-    # Format the messages for the summarization prompt
     convo_text = ""
     for m in messages_to_summarize:
         role = "User" if isinstance(m, HumanMessage) else "AI"
         convo_text += f"{role}: {m.content}\n"
     
+    lang = config.get("configurable", {}).get("lang", "en")
+    lang_instruction = (
+        "\n\n重要：请用简体中文生成摘要。"
+        if lang == "zh" else
+        "\n\nReturn the summary in English."
+    )
+
     llm = ChatOpenAI(model="gpt-4o", temperature=0)
     
     prompt = f"""
@@ -52,15 +54,13 @@ def summarize_memory(state: XAIState):
     - What dataset/model the user is analyzing.
     - What goals the user has (e.g., finding feature importance, checking fairness).
     - Any key findings or preferences established.
-    Return ONLY the summary text, nothing else.
+    Return ONLY the summary text, nothing else.{lang_instruction}
     """
 
     try:
         response = llm.invoke([SystemMessage(content=prompt)])
         new_summary = response.content.strip()
         
-        # Remove the messages we just summarized to keep the state lightweight
-        # In LangGraph, returning RemoveMessage(id=msg.id) tells the reducer to delete it
         remove_instructions = [RemoveMessage(id=m.id) for m in messages_to_summarize]
         
         return {

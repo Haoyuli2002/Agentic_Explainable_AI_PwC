@@ -225,12 +225,21 @@ def ethic_analysis_agent(state: XAIState, config: RunnableConfig):
     if model is None or df is None:
         return {"messages": [SystemMessage(content="Error: Model or Data not found in state. Please run data understanding first.")]}
     
+    # Language instruction
+    lang = config.get("configurable", {}).get("lang", "en")
+    lang_instruction = (
+        "\n\nIMPORTANT: The user interface is set to Chinese (中文). You MUST respond entirely in Simplified Chinese (简体中文). Ask clarifying questions, present findings, and give recommendations all in Chinese."
+        if lang == "zh" else
+        "\n\nRespond in English."
+    )
+    full_system_prompt = system_prompt + lang_instruction
+
     # Bind tool to LLM
     llm = ChatOpenAI(model="gpt-4o", temperature=0)
     llm_with_tools = llm.bind_tools([run_ethic_analysis, visualize_ethic_analysis])
         
     # Construct the full context
-    full_messages = [SystemMessage(content=system_prompt)] + messages
+    full_messages = [SystemMessage(content=full_system_prompt)] + messages
     
     # Invoke LLM
     response = llm_with_tools.invoke(full_messages)

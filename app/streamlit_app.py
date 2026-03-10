@@ -161,8 +161,8 @@ TEXTS = {
         "t3_header": "应用场景：贷款违约预测",
         "t3_intro": "本应用场景展示了一个现实世界中AI驱动的决策直接影响人们生活的案例——也正因如此，可解释性不是锦上添花，而是不可或缺的基础要素。",
         "t3_prob_title": "🏦 问题背景",
-        "t3_prob_body": """一位客户向其银行申请商业贷款。经过短暂等待后，他们收到了一封自动拒绝邮件。
-            当客户联系银行寻求说明时，被告知：<br><br>
+        "t3_prob_body": """一位客户向其银行申请商业贷款。经等待后，他们收到了一封自动拒绝邮件。
+            当客户联系银行寻求说明时，缺被告知：<br><br>
             <blockquote style="border-left: 4px solid #e74c3c; background: rgba(231,76,60,0.08); border-radius: 0 6px 6px 0; padding: 12px 16px; font-style: italic; margin: 12px 0;">
                 「该决定由内部机器学习模型作出，我们无法提供进一步的详细信息。」
             </blockquote>
@@ -215,13 +215,13 @@ TEXTS = {
         "custom_file": "custom file",
 
         # Session Memory
-        "session_memory": "💾 Session Memory",
+        "session_memory": "Session Memory",
         "current_thread": "**Current Thread ID**",
         "resume_input": "Resume previous session (enter Thread ID):",
         "resume_btn": "Resume Session",
 
         # Upload
-        "upload_expander": "📂 Upload your own files",
+        "upload_expander": "Upload your own files",
         "upload_csv": "Dataset (CSV or ARFF)",
         "upload_npz": "Padded 3D Data (.npz)",
         "upload_model": "Model (.cbm, .pt, .pth)",
@@ -244,10 +244,10 @@ TEXTS = {
         "api_warning": "⚠️ Please ensure your OPENAI_API_KEY is correctly set in the .env file to proceed.",
 
         # Tabs
-        "tab_intro": "📖 Introduction",
-        "tab_workflow": "🗺️ Typical Workflow",
-        "tab_usecase": "💡 Use Case",
-        "tab_chat": "💬 Agent Chat",
+        "tab_intro": "Introduction",
+        "tab_workflow": "Typical Workflow",
+        "tab_usecase": "Use Case",
+        "tab_chat": "Agent Chat",
 
         # Tab 1: Introduction
         "t1_header": "Project Overview",
@@ -457,7 +457,7 @@ if "thread_id" not in st.session_state:
 if "summary" not in st.session_state:
     st.session_state.summary = ""
 if "lang" not in st.session_state:
-    st.session_state.lang = "zh"          # default: Chinese
+    st.session_state.lang = "en"          # default: English
 
 # Shortcut for current texts
 t = TEXTS[st.session_state.lang]

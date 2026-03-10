@@ -7,7 +7,6 @@ from langchain_core.runnables.config import RunnableConfig
 from typing import Annotated
 from langgraph.prebuilt import InjectedState
 import pandas as pd
-import pandas as pd
 
 @tool
 def check_demographic_parity(sensitive_attribute: str, state: Annotated[dict, InjectedState], config: RunnableConfig):
@@ -59,13 +58,20 @@ def fairness_agent(state: XAIState, config: RunnableConfig):
     df = config.get("configurable", {}).get("df")
     columns = list(df.columns) if df is not None else []
     
+    lang = config.get("configurable", {}).get("lang", "en")
+    lang_instruction = (
+        "\n\nIMPORTANT: The user interface is set to Chinese (中文). You MUST respond entirely in Simplified Chinese (简体中文). All explanations, findings, and questions must be written in Chinese."
+        if lang == "zh" else
+        "\n\nRespond in English."
+    )
+
     prompt = f"""
     You are a Fairness Expert. The dataset has columns: {columns}.
     Your goal is to identify potential fairness issues.
     
     1. Identify any likely sensitive attributes (e.g., age, gender, race, marital status).
     2. Use the `check_demographic_parity` tool for the most critical one.
-    """
+    """ + lang_instruction
     
     response = llm_with_tools.invoke([SystemMessage(content=prompt)] + messages)
     
